@@ -51,11 +51,7 @@ export function getUI() {
   button.sender:hover { text-decoration: underline; }
   .room-dot, .status-dot { width: 6px; height: 6px; border-radius: 50%; background: #9ceacb; flex-shrink: 0; }
   .room-dot { margin-left: auto; }
-  .side-note { margin-top: auto; padding: 17px; border-radius: 16px; }
-  .side-note svg { width: 21px; height: 21px; color: #b8eddd; }
-  .side-note strong { display: block; margin: 10px 0 6px; font-size: 12px; }
-  .side-note p { margin: 0; color: #adc0c9; font-size: 12px; line-height: 1.7; }
-  .profile { display: flex; gap: 10px; align-items: center; min-width: 0; }
+  .profile { margin-top: auto; display: flex; gap: 10px; align-items: center; min-width: 0; }
   .avatar { width: 35px; height: 35px; border-radius: 12px; display: grid; place-items: center; background: linear-gradient(145deg, #addac732, #a4bcfa20); border: 1px solid #ffffff26; color: #d4f4e9; font-size: 13px; flex-shrink: 0; }
   .profile div:last-child { min-width: 0; }
   #profile-name { display: block; font-size: 12px; overflow: hidden; text-overflow: ellipsis; }
@@ -129,7 +125,6 @@ export function getUI() {
     <div class="brand"><div class="logo">${novaIcon()}</div><div class="brand-name">nova<span>chat</span></div></div>
     <div><div class="eyebrow">Your spaces</div><button id="sidebar-lounge" class="room glass" aria-current="true"><span class="hash">#</span><span><strong>Global lounge</strong><small>A place for everyone</small></span><span class="room-dot"></span></button></div>
     <div><div class="eyebrow">Direct messages</div><div class="dm-list" id="dm-list"></div></div>
-    <div class="side-note glass"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 7 3v6c0 5-7 9-7 9s-7-4-7-9V6z"/><path d="m8 12 3 3 5-6"/></svg><strong>Good chats start with you.</strong><p>Be kind. Make a friend.<br>Give everyone room to talk.</p></div>
     <div class="profile"><div class="avatar" id="profile-avatar">?</div><div><strong id="profile-name">Your name goes here</strong><small>Your corner of the internet</small></div></div>
   </aside>
   <main>

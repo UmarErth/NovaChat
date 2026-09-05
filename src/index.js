@@ -1,346 +1,193 @@
-﻿export class ChatRoom {
-  constructor(state, env) {
-    this.state = state;
-  }
+import { getUI } from './ui.js';
+
+const WINDOW_MS = 4000;
+const COOLDOWN_MS = 5000;
+const MESSAGE_LIMIT = 7;
+
+// Public routing IDs must never reveal the browser's identity cookie.
+export async function peerIdFor(clientId) {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('nova-peer:' + clientId));
+  return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('');
+}
+
+export function checkRate(previous, now) {
+  const rate = previous || { times: [], until: 0 };
+  if (rate.until > now) return { allowed: false, rate };
+  const times = rate.times.filter(time => now - time < WINDOW_MS);
+  times.push(now);
+  const until = times.length >= MESSAGE_LIMIT ? now + COOLDOWN_MS : 0;
+  return { allowed: true, rate: { times: until ? [] : times, until, lastSeen: now } };
+}
+
+export class ChatRoom {
+  constructor(state, env) { this.state = state; }
 
   async fetch(request) {
-    const pair = new WebSocketPair();
-    const [client, server] = Object.values(pair);
-
+    if (request.headers.get('Upgrade')?.toLowerCase() !== 'websocket') {
+      return new Response('Expected WebSocket upgrade', { status: 426 });
+    }
+    const [client, server] = Object.values(new WebSocketPair());
     this.state.acceptWebSocket(server);
+    const clientId = request.headers.get('X-Nova-Client') || crypto.randomUUID();
+    server.serializeAttachment({ clientId, peerId: await peerIdFor(clientId) });
     this.broadcastPresence();
-
     return new Response(null, { status: 101, webSocket: client });
   }
 
   async webSocketMessage(ws, message) {
-    const data = JSON.parse(message);
-    const payload = JSON.stringify({
-      type: "chat",
-      user: data.user,
-      text: data.text,
-    });
-
-    for (const socket of this.state.getWebSockets()) {
-      socket.send(payload);
-    }
-  }
-
-  async webSocketClose(ws, code, reason, wasClean) {
-    ws.close();
-    this.broadcastPresence();
-  }
-
-  async webSocketError(ws, error) {
-    ws.close();
-    this.broadcastPresence();
-  }
-
-  broadcastPresence() {
-    const activeCount = this.state.getWebSockets().length;
-    const payload = JSON.stringify({
-      type: "presence",
-      count: activeCount,
-    });
-
-    for (const socket of this.state.getWebSockets()) {
-      try {
-        socket.send(payload);
-      } catch (err) {
-        // Socket handle cleanup
+    // Bound work before parsing. Validate names and chat text independently.
+    if (typeof message !== 'string' || message.length > 8192) return;
+    let data;
+    try { data = JSON.parse(message); } catch { return; }
+    if (!data || typeof data !== 'object') return;
+    await this.ensurePeer(ws);
+    if (data.type === 'init' || data.type === 'profile') {
+      if (data.user !== undefined) {
+        if (typeof data.user !== 'string' || !data.user.trim() || data.user.trim().length > 20) {
+          this.send(ws, { type: 'error', text: 'Choose a name of 1–20 characters.' });
+          return;
+        }
+        this.setName(ws, data.user.trim());
       }
+      this.send(ws, { type: 'session', peerId: ws.deserializeAttachment().peerId });
+      this.broadcastPresence();
+      const rate = await this.state.storage.get('rate:' + this.clientId(ws));
+      if (rate?.until > Date.now()) this.sendTimeout(ws, rate.until);
+      return;
     }
+    if (data.type !== 'chat' && data.type !== 'dm' && data.type !== undefined) return;
+    if (typeof data.text !== 'string') return;
+    const profile = ws.deserializeAttachment();
+    const suppliedName = typeof data.user === 'string' ? data.user.trim() : '';
+    const user = profile.user || suppliedName;
+    const text = data.text.trim();
+    const to = data.type === 'dm' && typeof data.to === 'string' ? data.to : null;
+    if (!user || user.length > 20 || !text || text.length > 2000) {
+      this.send(ws, { type: 'error', text: 'Use a name of 1–20 characters and a message of 1–2,000 characters.' });
+      return;
+    }
+    if (data.type === 'dm' && (!profile.user || !to || to.length !== 64 || to === profile.peerId)) {
+      this.send(ws, { type: 'error', text: 'Choose someone online to start a direct message.', rejectedText: text, to });
+      return;
+    }
+    // Older clients may still provide their name on their first public message.
+    if (!profile.user) { this.setName(ws, user); this.broadcastPresence(); }
+    // Browser identity survives refresh/name changes, without grouping school IPs.
+    // Serialize across tabs and persist through Durable Object hibernation.
+    await this.state.blockConcurrencyWhile(async () => {
+      const clientId = this.clientId(ws);
+      const sender = ws.deserializeAttachment();
+      const recipients = to ? this.state.getWebSockets().filter(socket => {
+        const peer = socket.deserializeAttachment();
+        return peer?.peerId === to && peer.user && (socket.readyState === undefined || socket.readyState === 1);
+      }) : [];
+      if (to && !recipients.length) {
+        this.send(ws, { type: 'error', text: 'That person is offline. Your message was not sent.', rejectedText: text, to });
+        return;
+      }
+      const key = 'rate:' + clientId;
+      const result = checkRate(await this.state.storage.get(key), Date.now());
+      if (!result.allowed) { this.sendTimeout(ws, result.rate.until, text, to); return; }
+      await this.state.storage.put(key, result.rate);
+      if (await this.state.storage.getAlarm() === null) await this.state.storage.setAlarm(Date.now() + 60000);
+      if (to) {
+        const payload = { type: 'dm', from: sender.peerId, to, user: sender.user, recipient: recipients[0].deserializeAttachment().user, text, timestamp: Date.now() };
+        // Deliberately never broadcast DMs: only the recipient and sender's tabs.
+        for (const socket of this.state.getWebSockets()) {
+          if (recipients.includes(socket) || this.clientId(socket) === clientId) {
+            this.send(socket, { ...payload, own: this.clientId(socket) === clientId });
+          }
+        }
+      } else {
+        this.broadcast({ type: 'chat', user: sender.user, from: sender.peerId, text, timestamp: Date.now() }, ws);
+      }
+      if (result.rate.until) {
+        for (const socket of this.state.getWebSockets()) {
+          if (this.clientId(socket) === clientId) this.sendTimeout(socket, result.rate.until);
+        }
+      }
+    });
+  }
+
+  clientId(ws) {
+    let attachment = ws.deserializeAttachment();
+    if (!attachment?.clientId) {
+      attachment = { clientId: crypto.randomUUID() };
+      ws.serializeAttachment(attachment);
+    }
+    return attachment.clientId;
+  }
+
+  async ensurePeer(ws) {
+    const clientId = this.clientId(ws);
+    const profile = ws.deserializeAttachment();
+    if (!profile.peerId) ws.serializeAttachment({ ...profile, peerId: await peerIdFor(clientId) });
+  }
+
+  setName(ws, user) {
+    const profile = ws.deserializeAttachment();
+    for (const socket of this.state.getWebSockets()) {
+      if (this.clientId(socket) === profile.clientId) socket.serializeAttachment({ ...profile, user });
+    }
+  }
+
+  async alarm() {
+    const rates = await this.state.storage.list({ prefix: 'rate:' });
+    const now = Date.now();
+    const stale = [];
+    for (const [key, rate] of rates) {
+      if (Math.max(rate.until, rate.lastSeen + WINDOW_MS) <= now) stale.push(key);
+    }
+    for (let i = 0; i < stale.length; i += 128) await this.state.storage.delete(stale.slice(i, i + 128));
+    if (rates.size > stale.length) await this.state.storage.setAlarm(now + 60000);
+  }
+
+  send(ws, data) {
+    try { ws.send(JSON.stringify(data)); } catch { /* A disconnected peer must not stop the room. */ }
+  }
+  sendTimeout(ws, until, rejectedText, to) {
+    this.send(ws, { type: 'timeout', retryAfterMs: Math.max(0, until - Date.now()), rejectedText, to });
+  }
+  broadcast(data, sender) {
+    for (const socket of this.state.getWebSockets()) {
+      this.send(socket, data.type === 'chat' ? { ...data, own: this.clientId(socket) === this.clientId(sender) } : data);
+    }
+  }
+  webSocketClose(ws, code) {
+    try { ws.close(code === 1006 ? 1000 : code); } catch { /* Already closed. */ }
+    this.broadcastPresence(ws);
+  }
+  webSocketError(ws) {
+    try { ws.close(1011, 'Connection error'); } catch { /* Already closed. */ }
+    this.broadcastPresence(ws);
+  }
+  broadcastPresence(excluded) {
+    const sockets = this.state.getWebSockets().filter(socket => socket !== excluded);
+    const peers = new Map();
+    for (const socket of sockets) {
+      const profile = socket.deserializeAttachment();
+      if (profile?.peerId && profile.user) peers.set(profile.peerId, { id: profile.peerId, user: profile.user });
+    }
+    for (const socket of sockets) this.send(socket, { type: 'presence', count: peers.size, users: [...peers.values()] });
   }
 }
 
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
-
-    if (url.pathname === "/ws") {
-      if (request.headers.get("Upgrade") !== "websocket") {
-        return new Response("Expected WebSocket upgrade", { status: 426 });
-      }
-
-      const id = env.CHAT_ROOM.idFromName("global");
-      const room = env.CHAT_ROOM.get(id);
-      return room.fetch(request);
+    const cookie = request.headers.get('Cookie') || '';
+    const existing = cookie.match(/(?:^|;\s*)nova_client=([a-f0-9-]{36})(?:;|$)/)?.[1];
+    const clientId = existing || crypto.randomUUID();
+    if (url.pathname === '/ws') {
+      const origin = request.headers.get('Origin');
+      if (origin && origin !== url.origin) return new Response('Forbidden', { status: 403 });
+      const headers = new Headers(request.headers);
+      headers.set('X-Nova-Client', clientId);
+      const room = env.CHAT_ROOM.get(env.CHAT_ROOM.idFromName('global'));
+      return room.fetch(new Request(request, { headers }));
     }
-
-    return new Response(getUI(), {
-      headers: { "Content-Type": "text/html;charset=UTF-8" },
-    });
+    const headers = new Headers({ 'Content-Type': 'text/html;charset=UTF-8', 'Cache-Control': 'no-store' });
+    if (!existing) headers.set('Set-Cookie', 'nova_client=' + clientId + '; Path=/; HttpOnly; SameSite=Strict; Max-Age=31536000' + (url.protocol === 'https:' ? '; Secure' : ''));
+    return new Response(getUI(), { headers });
   },
 };
-
-function getUI() {
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Nova Gaming - Global Chat</title>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-family: 'Inter', system-ui, -apple-system, sans-serif;
-      background: #08090d;
-      color: #f1f5f9;
-      min-height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 20px;
-      overflow: hidden;
-      position: relative;
-    }
-
-    .orb {
-      position: absolute;
-      border-radius: 50%;
-      filter: blur(100px);
-      opacity: 0.45;
-      animation: float 14s infinite alternate ease-in-out;
-      z-index: 0;
-    }
-    .orb-1 { width: 380px; height: 380px; background: #00f2fe; top: -60px; left: -60px; }
-    .orb-2 { width: 420px; height: 420px; background: #7928ca; bottom: -80px; right: -80px; animation-delay: -5s; }
-    .orb-3 { width: 280px; height: 280px; background: #ff0070; top: 50%; left: 50%; transform: translate(-50%, -50%); opacity: 0.2; animation-delay: -9s; }
-
-    @keyframes float {
-      0% { transform: translate(0, 0) scale(1); }
-      100% { transform: translate(40px, 50px) scale(1.15); }
-    }
-
-    .glass-card {
-      position: relative;
-      z-index: 10;
-      width: 100%;
-      max-width: 760px;
-      height: 640px;
-      background: rgba(15, 18, 28, 0.45);
-      backdrop-filter: blur(28px) saturate(190%);
-      -webkit-backdrop-filter: blur(28px) saturate(190%);
-      border: 1px solid rgba(255, 255, 255, 0.12);
-      border-radius: 24px;
-      box-shadow: 0 25px 50px rgba(0, 0, 0, 0.7),
-                  inset 0 1px 1px rgba(255, 255, 255, 0.25);
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
-    }
-
-    .header {
-      padding: 18px 24px;
-      background: rgba(255, 255, 255, 0.03);
-      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-    }
-    .brand {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-    .brand-icon {
-      width: 38px;
-      height: 38px;
-      background: linear-gradient(135deg, #00f2fe, #4facfe, #7928ca);
-      border-radius: 12px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-weight: 900;
-      color: #fff;
-      font-size: 20px;
-      box-shadow: 0 0 18px rgba(0, 242, 254, 0.45);
-    }
-    .brand-title {
-      font-size: 1.2rem;
-      font-weight: 800;
-      letter-spacing: 0.12em;
-      background: linear-gradient(90deg, #ffffff, #00f2fe);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      text-transform: uppercase;
-    }
-    .status-badge {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      font-size: 0.78rem;
-      color: rgba(255, 255, 255, 0.8);
-      background: rgba(0, 242, 254, 0.08);
-      border: 1px solid rgba(0, 242, 254, 0.22);
-      padding: 6px 14px;
-      border-radius: 20px;
-      backdrop-filter: blur(10px);
-    }
-    .status-dot {
-      width: 8px;
-      height: 8px;
-      background: #00f2fe;
-      border-radius: 50%;
-      box-shadow: 0 0 10px #00f2fe;
-    }
-
-    #chat {
-      flex: 1;
-      padding: 24px;
-      overflow-y: auto;
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-    }
-    #chat::-webkit-scrollbar {
-      width: 6px;
-    }
-    #chat::-webkit-scrollbar-thumb {
-      background: rgba(255, 255, 255, 0.15);
-      border-radius: 3px;
-    }
-
-    .msg {
-      max-width: 80%;
-      padding: 12px 16px;
-      border-radius: 18px;
-      background: rgba(255, 255, 255, 0.04);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      backdrop-filter: blur(12px);
-      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-      line-height: 1.45;
-      font-size: 0.92rem;
-      animation: slideIn 0.2s ease-out forwards;
-    }
-    @keyframes slideIn {
-      from { opacity: 0; transform: translateY(10px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-    .sender {
-      font-weight: 700;
-      font-size: 0.78rem;
-      color: #00f2fe;
-      margin-bottom: 4px;
-      display: block;
-      letter-spacing: 0.04em;
-      text-transform: uppercase;
-    }
-
-    .input-panel {
-      padding: 18px 24px;
-      background: rgba(255, 255, 255, 0.02);
-      border-top: 1px solid rgba(255, 255, 255, 0.08);
-      display: flex;
-      gap: 12px;
-    }
-    .glass-input {
-      background: rgba(0, 0, 0, 0.35);
-      border: 1px solid rgba(255, 255, 255, 0.14);
-      border-radius: 14px;
-      padding: 12px 18px;
-      color: #fff;
-      font-size: 0.9rem;
-      outline: none;
-      transition: all 0.25s ease;
-      backdrop-filter: blur(10px);
-    }
-    .glass-input::placeholder {
-      color: rgba(255, 255, 255, 0.4);
-    }
-    .glass-input:focus {
-      border-color: rgba(0, 242, 254, 0.6);
-      box-shadow: 0 0 18px rgba(0, 242, 254, 0.25);
-      background: rgba(0, 0, 0, 0.5);
-    }
-    #username { width: 28%; }
-    #message { flex: 1; }
-
-    .glass-btn {
-      background: linear-gradient(135deg, #00f2fe, #4facfe);
-      border: 1px solid rgba(255, 255, 255, 0.4);
-      color: #050811;
-      font-weight: 800;
-      padding: 12px 24px;
-      border-radius: 14px;
-      cursor: pointer;
-      font-size: 0.9rem;
-      letter-spacing: 0.06em;
-      text-transform: uppercase;
-      transition: all 0.25s ease;
-      box-shadow: 0 4px 20px rgba(0, 242, 254, 0.35);
-    }
-    .glass-btn:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 6px 25px rgba(0, 242, 254, 0.55);
-    }
-    .glass-btn:active {
-      transform: translateY(1px);
-    }
-  </style>
-</head>
-<body>
-  <div class="orb orb-1"></div>
-  <div class="orb orb-2"></div>
-  <div class="orb orb-3"></div>
-
-  <div class="glass-card">
-    <div class="header">
-      <div class="brand">
-        <div class="brand-icon">N</div>
-        <div class="brand-title">Nova Gaming</div>
-      </div>
-      <div class="status-badge">
-        <div class="status-dot"></div>
-        <span id="user-count">1 Player Online</span>
-      </div>
-    </div>
-
-    <div id="chat"></div>
-
-    <div class="input-panel">
-      <input id="username" class="glass-input" placeholder="Handle" maxlength="20" />
-      <input id="message" class="glass-input" placeholder="Send a message..." onkeypress="if(event.key==='Enter') send()" />
-      <button class="glass-btn" onclick="send()">Send</button>
-    </div>
-  </div>
-
-  <script>
-    const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const ws = new WebSocket(`${protocol}//${location.host}/ws`);
-    const chat = document.getElementById('chat');
-    const userCount = document.getElementById('user-count');
-
-    ws.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-
-      if (data.type === 'presence') {
-        userCount.textContent = `${data.count} ${data.count === 1 ? 'Player' : 'Players'} Online`;
-        return;
-      }
-
-      if (data.type === 'chat') {
-        const div = document.createElement('div');
-        div.className = 'msg';
-        div.innerHTML = `<span class="sender">${escapeHtml(data.user)}</span>${escapeHtml(data.text)}`;
-        chat.appendChild(div);
-        chat.scrollTop = chat.scrollHeight;
-      }
-    };
-
-    function send() {
-      const user = document.getElementById('username').value.trim() || 'Player';
-      const textInput = document.getElementById('message');
-      const text = textInput.value.trim();
-      if (!text) return;
-      ws.send(JSON.stringify({ user, text }));
-      textInput.value = '';
-    }
-
-    function escapeHtml(str) {
-      return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-    }
-  </script>
-</body>
-</html>`;
-}

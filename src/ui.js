@@ -9,7 +9,7 @@ export function getUI() {
 <style>
   :root { color-scheme: dark; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #edf7fa; background: #0b1720; font-synthesis: none; }
   * { box-sizing: border-box; }
-  body { margin: 0; height: 100vh; height: 100dvh; padding: 28px; background: radial-gradient(ellipse at 0% 0%, #234e58 0, transparent 52%), radial-gradient(ellipse at 100% 100%, #333c65 0, transparent 55%), #0b1720; }
+  body { margin: 0; height: 100vh; height: 100dvh; overflow: hidden; background: #101e29; }
   button, input { font: inherit; }
   button { cursor: pointer; }
   button, input { -webkit-tap-highlight-color: transparent; }
@@ -17,8 +17,8 @@ export function getUI() {
   button:disabled { cursor: default; opacity: .45; }
   [hidden] { display: none !important; }
   .glass { background: linear-gradient(135deg, #ffffff12, #ffffff03 65%); border: 1px solid #ffffff20; box-shadow: inset 0 1px 0 #ffffff1c, 0 12px 36px #00000016; }
-  .app { max-width: 1440px; height: 100%; margin: auto; border-radius: 26px; overflow: hidden; display: grid; grid-template-columns: 242px minmax(0, 1fr); background-color: #101e29bb; }
-  .sidebar { padding: 30px 20px 22px; border-right: 1px solid #ffffff12; display: flex; flex-direction: column; gap: 32px; background: linear-gradient(150deg, #ffffff06, transparent); }
+  .app { width: 100%; height: 100%; overflow: hidden; display: grid; grid-template-columns: 242px minmax(0, 1fr); background: #101e29; }
+  .sidebar { min-height: 0; overflow-y: auto; padding: 30px 20px 22px; border-right: 1px solid #ffffff12; display: flex; flex-direction: column; gap: 26px; background: linear-gradient(150deg, #ffffff06, transparent); }
   .brand { display: flex; align-items: center; gap: 12px; }
   .logo { width: 42px; height: 42px; border-radius: 15px; display: grid; place-items: center; color: #c5ffed; background: linear-gradient(140deg, #bcffe53b, #73c8ff10); border: 1px solid #caffed5c; box-shadow: inset 0 2px 3px #ffffff30; flex-shrink: 0; }
   .logo svg { width: 25px; height: 25px; }
@@ -29,6 +29,26 @@ export function getUI() {
   .hash { font-size: 26px; color: #baf7e4; font-weight: 300; }
   .room strong { display: block; font-size: 13px; font-weight: 600; }
   .room small { display: block; color: #9ebac5; font-size: 11px; margin-top: 4px; }
+  button.room { width: 100%; color: inherit; text-align: left; }
+  .dm-list { display: grid; gap: 6px; margin-top: 12px; max-height: 32vh; overflow-y: auto; }
+  .dm-list:empty:after { content: 'Your conversations will appear here.'; color: #9ebac5; font-size: 11px; line-height: 1.7; }
+  .contact { display: flex; align-items: center; gap: 10px; width: 100%; color: #e4f1f5; padding: 10px; border: 1px solid transparent; border-radius: 12px; background: transparent; text-align: left; }
+  .contact:hover, .contact[aria-current="true"] { border-color: #c1f9e52e; background: #bdf9e510; }
+  .contact-label { min-width: 0; flex: 1; overflow: hidden; }
+  .contact-label strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
+  .contact-label small { font-size: 10px; color: #a6bcc7; }
+  .unread { background: #c4f4e4; color: #16392f; border-radius: 20px; min-width: 20px; padding: 3px 6px; font-size: 10px; text-align: center; }
+  .channel-nav { display: flex; gap: 8px; padding: 12px 32px; border-bottom: 1px solid #ffffff0c; flex-shrink: 0; }
+  .channel-btn { padding: 9px 13px; border-radius: 11px; color: #c7dde6; background: #ffffff06; border: 1px solid #ffffff17; font-size: 12px; }
+  .channel-btn[aria-current="true"], .channel-btn[aria-expanded="true"] { background: #bcfce51a; border-color: #bcfce548; color: #d3ffeb; }
+  #people-panel { flex-shrink: 0; max-height: 35vh; overflow-y: auto; padding: 12px 32px; border-bottom: 1px solid #ffffff20; background: #152833; }
+  #people-panel p { color: #b0c6ce; font-size: 11px; margin: 4px 0 12px; }
+  #people-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 5px; }
+  .header-title { min-width: 0; }
+  #conversation-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #dm-alert { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); }
+  button.sender { color: inherit; padding: 0; background: none; border: none; text-align: left; }
+  button.sender:hover { text-decoration: underline; }
   .room-dot, .status-dot { width: 6px; height: 6px; border-radius: 50%; background: #9ceacb; flex-shrink: 0; }
   .room-dot { margin-left: auto; }
   .side-note { margin-top: auto; padding: 17px; border-radius: 16px; }
@@ -95,28 +115,32 @@ export function getUI() {
   .dialog-actions .primary { flex: 1; padding: 14px; }
   #cancel { color: #d5e7ed; border-radius: 12px; padding: 12px 18px; }
   .dialog .privacy { font-size: 10px; text-align: center; margin: 17px 0 0; color: #a6c0c9; }
-  @media (max-width: 900px) { body { padding: 14px; } .app { grid-template-columns: 205px minmax(0, 1fr); } header { padding: 22px; } #chat { padding: 22px; } footer { padding: 0 22px 18px; } }
+  @media (max-width: 900px) { .app { grid-template-columns: 205px minmax(0, 1fr); } header { padding: 22px; } #chat { padding: 22px; } footer { padding: 0 22px 18px; } }
   @media (max-width: 680px) { body { padding: 0; } .app { border: 0; border-radius: 0; grid-template-columns: minmax(0, 1fr); } .sidebar { display: none; } header { padding: 18px 16px; gap: 10px; } header > .hash { display: none; } header h1 { font-size: 16px; } .status { padding: 8px; font-size: 10px; } #chat { padding: 18px 16px; } footer { padding: 0 16px max(16px, env(safe-area-inset-bottom)); } .composer-hint span:last-child { display: none; } #send { padding: 12px; } #send span { display: none; } .dialog { padding: 27px; } .message-content { max-width: 83%; } }
   @media (max-height: 520px) { .welcome { margin: 10px auto 20px; } .welcome .logo, .welcome-tag { display: none; } .dialog { padding: 20px; } .dialog .logo { display: none; } .dialog p { margin-bottom: 14px; } }
+  @media (max-width: 680px) { .channel-nav, #people-panel { padding: 10px 16px; } #people-list { grid-template-columns: 1fr; } #people-panel { max-height: 32vh; } }
   @media (prefers-reduced-transparency: reduce) { .app { background-color: #182b37; } .bubble, .composer, .room { background-color: #263c48; } }
   @media (forced-colors: active) { .glass, .bubble, .dialog, .primary, #name { border: 1px solid ButtonText; } }
 </style>
 </head>
 <body>
-<div class="app glass" id="app">
+<div class="app" id="app">
   <aside class="sidebar" aria-label="Chat room">
     <div class="brand"><div class="logo">${novaIcon()}</div><div class="brand-name">nova<span>chat</span></div></div>
-    <div><div class="eyebrow">Your spaces</div><div class="room glass" aria-current="page"><span class="hash">#</span><div><strong>Global lounge</strong><small>A place for everyone</small></div><span class="room-dot"></span></div></div>
+    <div><div class="eyebrow">Your spaces</div><button id="sidebar-lounge" class="room glass" aria-current="true"><span class="hash">#</span><span><strong>Global lounge</strong><small>A place for everyone</small></span><span class="room-dot"></span></button></div>
+    <div><div class="eyebrow">Direct messages</div><div class="dm-list" id="dm-list"></div></div>
     <div class="side-note glass"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 7 3v6c0 5-7 9-7 9s-7-4-7-9V6z"/><path d="m8 12 3 3 5-6"/></svg><strong>Good chats start with you.</strong><p>Be kind. Make a friend.<br>Give everyone room to talk.</p></div>
     <div class="profile"><div class="avatar" id="profile-avatar">?</div><div><strong id="profile-name">Your name goes here</strong><small>Your corner of the internet</small></div></div>
   </aside>
   <main>
-    <header><span class="hash" aria-hidden="true">#</span><div class="header-title"><h1>Global lounge</h1><p>Different people. One conversation.</p></div><div class="status glass offline" id="status"><span class="status-dot"></span><span id="user-count">Connecting…</span></div><button class="icon-btn glass" id="settings" aria-label="Settings" title="Settings · change your name"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 3-.6 2.2-2 .9-2-.6-2 3.5L4 10.5v3l-1.6 1.6 2 3.5 2-.6 2 .9L9 21h4l.6-2.1 2-.9 2 .6 2-3.5-1.6-1.6v-3L19.6 9l-2-3.5-2 .6-2-.9L13 3z"/><circle cx="11" cy="12" r="3"/></svg></button></header>
+    <header><span class="hash" aria-hidden="true">#</span><div class="header-title"><h1 id="conversation-title">Global lounge</h1><p id="conversation-subtitle">Different people. One conversation.</p></div><div class="status glass offline" id="status"><span class="status-dot"></span><span id="user-count">Connecting…</span></div><button class="icon-btn glass" id="settings" aria-label="Settings" title="Settings · change your name"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 3-.6 2.2-2 .9-2-.6-2 3.5L4 10.5v3l-1.6 1.6 2 3.5 2-.6 2 .9L9 21h4l.6-2.1 2-.9 2 .6 2-3.5-1.6-1.6v-3L19.6 9l-2-3.5-2 .6-2-.9L13 3z"/><circle cx="11" cy="12" r="3"/></svg></button></header>
+    <nav class="channel-nav" aria-label="Conversations"><button id="lounge" class="channel-btn" aria-current="true"># Global lounge</button><button id="people-toggle" class="channel-btn" aria-expanded="false" aria-controls="people-panel">People &amp; messages <span id="total-unread" class="unread" hidden></span></button></nav>
+    <section id="people-panel" aria-label="People and direct messages" hidden><p>Choose someone to send a direct message. Messages stay in this tab until you refresh.</p><div id="people-list"></div></section><div id="dm-alert" role="status" aria-live="polite"></div>
     <section id="chat" role="log" aria-label="Chat messages" aria-live="polite" aria-relevant="additions" tabindex="0">
       <div class="welcome" id="welcome"><div class="logo">${novaIcon()}</div><div class="eyebrow">A little space to connect</div><h2>Good company. Great chats.</h2><p>Drop a thought, share a moment, or just say hey. The lounge is yours.</p><div class="welcome-tag glass"><span class="status-dot"></span>Live, in the moment</div></div>
       <div class="day-label">This conversation starts here</div><div id="messages"></div>
     </section>
-    <footer><p id="notice" role="status" aria-live="polite"></p><form class="composer glass" id="composer"><input id="message" aria-label="Message" placeholder="Say something nice…" maxlength="2000" autocomplete="off" disabled><button class="primary" id="send" type="submit" disabled><span>Send</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 14-7-4 14-3-6-7-1Z"/><path d="m12 13 7-8"/></svg></button></form><div class="composer-hint"><span id="chatting-as">Choose a name to join in</span><span>Enter to send · A little kindness goes a long way</span></div></footer>
+    <footer><p id="notice" role="status" aria-live="polite"></p><form class="composer glass" id="composer"><input id="message" aria-label="Message" placeholder="Say something nice…" maxlength="2000" autocomplete="off" disabled><button class="primary" id="send" aria-label="Send" type="submit" disabled><span>Send</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 14-7-4 14-3-6-7-1Z"/><path d="m12 13 7-8"/></svg></button></form><div class="composer-hint"><span id="chatting-as">Choose a name to join in</span><span>Enter to send · A little kindness goes a long way</span></div></footer>
   </main>
 </div>
 <div class="overlay" id="name-overlay" hidden><section class="dialog" role="dialog" aria-modal="true" aria-labelledby="name-title" aria-describedby="name-description"><div class="logo">${novaIcon()}</div><div class="eyebrow" id="dialog-eyebrow">Welcome to Nova Chat</div><h2 id="name-title">What do you want to be called in chat?</h2><p id="name-description">Pick a name that feels like you. You can change it anytime in settings.</p><form id="name-form"><label for="name">Your chat name</label><input id="name" placeholder="e.g. Moonwalker" maxlength="20" autocomplete="nickname" required aria-describedby="name-error"><div id="name-error" role="alert"></div><div class="dialog-actions"><button id="cancel" class="glass" type="button" hidden>Cancel</button><button class="primary" id="save-name" type="submit">Let’s chat <span aria-hidden="true">↗</span></button></div></form><p class="privacy">Your name is saved on this browser.</p></section></div>
@@ -142,21 +166,150 @@ const clientScript = String.raw`(function startChat() {
   let until = Math.min(Number(read(TIMEOUT_KEY)) || 0, Date.now() + 5000);
   let ws, connected = false, timer, reconnectTimer, retries = 0, editing = false;
   let sentTimes = [];
+  let selfId = '', selected = 'global';
+  let users = new Map();
+  const history = [];
+  const conversations = new Map([['global', { user: 'Global lounge', draft: '', unread: 0 }]]);
   const timeFormat = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' });
+
+  function conversation(id, user) {
+    if (!conversations.has(id)) conversations.set(id, { user: user || 'Someone', draft: '', unread: 0 });
+    const entry = conversations.get(id);
+    if (user) entry.user = user;
+    return entry;
+  }
+  function sendProfile() {
+    if (name && connected && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'profile', user: name }));
+  }
+  function renderContacts() {
+    const makeButton = (id, user, online) => {
+      const entry = conversations.get(id);
+      const button = document.createElement('button');
+      button.className = 'contact';
+      button.type = 'button';
+      button.setAttribute('aria-current', String(selected === id));
+      button.setAttribute('aria-label', 'Message ' + user + ' · ' + id.slice(0, 6) + (online ? ' · online' : ' · offline'));
+      const avatar = document.createElement('span');
+      avatar.className = 'avatar';
+      avatar.textContent = Array.from(user)[0]?.toUpperCase() || '?';
+      const label = document.createElement('span');
+      label.className = 'contact-label';
+      const title = document.createElement('strong'); title.textContent = user;
+      const subtitle = document.createElement('small'); subtitle.textContent = (online ? 'Online' : 'Offline') + ' · ' + id.slice(0, 6);
+      label.append(title, subtitle); button.append(avatar, label);
+      if (entry?.unread) {
+        const badge = document.createElement('span'); badge.className = 'unread'; badge.textContent = String(entry.unread);
+        button.appendChild(badge);
+      }
+      button.addEventListener('click', () => selectConversation(id, user));
+      return button;
+    };
+    const list = $('people-list'), recent = $('dm-list');
+    list.replaceChildren(); recent.replaceChildren();
+    const contacts = new Map();
+    for (const [id, entry] of users) if (id !== selfId) contacts.set(id, entry.user);
+    for (const [id, entry] of conversations) if (id !== 'global' && id !== selfId) {
+      contacts.set(id, users.get(id)?.user || entry.user);
+      recent.appendChild(makeButton(id, users.get(id)?.user || entry.user, connected && users.has(id)));
+    }
+    for (const [id, user] of contacts) list.appendChild(makeButton(id, user, connected && users.has(id)));
+    if (!contacts.size) {
+      const empty = document.createElement('p'); empty.textContent = 'No one else is here yet. Invite a friend to the lounge.'; list.appendChild(empty);
+    }
+    let unread = 0;
+    for (const [id, entry] of conversations) if (id !== 'global') unread += entry.unread;
+    $('total-unread').hidden = unread === 0;
+    $('total-unread').textContent = String(unread);
+  }
+  function updateConversationHeader() {
+    const direct = selected !== 'global';
+    const entry = conversation(selected);
+    $('conversation-title').textContent = direct ? entry.user : 'Global lounge';
+    $('conversation-subtitle').textContent = direct ? 'Direct message · ' + (connected && users.has(selected) ? 'online' : 'offline') : 'Different people. One conversation.';
+    if (direct) {
+      $('welcome').querySelector('h2').textContent = 'Just you and ' + entry.user + '.';
+      $('welcome').querySelector('p').textContent = 'This conversation is sent only to you and ' + entry.user + '. Say hello.';
+    }
+    $('lounge').setAttribute('aria-current', String(!direct));
+    $('sidebar-lounge').setAttribute('aria-current', String(!direct));
+    message.placeholder = direct ? 'Message ' + entry.user + '…' : 'Say something nice…';
+    $('chatting-as').textContent = name ? (direct ? 'Direct message to ' + entry.user + ' · as ' + name : 'Chatting as ' + name) : 'Choose a name to join in';
+  }
+  function selectConversation(id, user) {
+    if (id === selfId) return;
+    conversation(selected).draft = message.value;
+    selected = id;
+    const entry = conversation(id, user);
+    entry.unread = 0;
+    message.value = entry.draft;
+    messages.replaceChildren();
+    $('welcome').classList.remove('started');
+    $('welcome').querySelector('h2').textContent = id === 'global' ? 'Good company. Great chats.' : 'Just you and ' + entry.user + '.';
+    $('welcome').querySelector('p').textContent = id === 'global' ? 'Drop a thought, share a moment, or just say hey. The lounge is yours.' : 'This conversation is sent only to you and ' + entry.user + '. Say hello.';
+    $('welcome').querySelector('.eyebrow').textContent = id === 'global' ? 'A little space to connect' : 'Direct messages';
+    $('welcome').querySelector('.welcome-tag').hidden = id !== 'global';
+    document.querySelector('.day-label').textContent = id === 'global' ? 'This conversation starts here' : 'Direct messages · this session';
+    for (const item of history) if (item.conversation === selected) appendMessage(item);
+    chat.scrollTop = chat.scrollHeight;
+    $('people-panel').hidden = true;
+    $('people-toggle').setAttribute('aria-expanded', 'false');
+    updateConversationHeader(); renderContacts(); updateControls();
+    if (!message.disabled) message.focus(); else $('people-toggle').focus();
+  }
+  function receiveMessage(data) {
+    if (data.type === 'dm' && (!selfId || (data.to !== selfId && data.from !== selfId))) return;
+    const id = data.type === 'dm' ? (data.own ? data.to : data.from) : 'global';
+    const entry = conversation(id, data.type === 'dm' ? (data.own ? data.recipient : data.user) : undefined);
+    history.push({ ...data, conversation: id });
+    // One shared cap bounds memory across public chat and all direct messages.
+    if (history.length > 150) {
+      const removed = history.shift();
+      if (removed.conversation === selected && messages.firstElementChild) messages.firstElementChild.remove();
+    }
+    if (selected === id) appendMessage(data);
+    else if (!data.own) {
+      entry.unread++;
+      if (data.type === 'dm') $('dm-alert').textContent = data.user + ' sent you a direct message.';
+    }
+    if (data.type === 'dm') renderContacts();
+  }
+  function restoreDraft(data) {
+    if (!data.rejectedText) return;
+    const id = data.to || 'global';
+    const entry = conversation(id, users.get(id)?.user);
+    const draft = selected === id ? message.value : entry.draft;
+    entry.draft = (data.rejectedText + (draft ? ' ' + draft : '')).slice(0, 2000);
+    if (selected === id) message.value = entry.draft;
+    updateControls();
+  }
+  $('lounge').addEventListener('click', () => selectConversation('global'));
+  $('sidebar-lounge').addEventListener('click', () => selectConversation('global'));
+  $('people-toggle').addEventListener('click', () => {
+    $('people-panel').hidden = !$('people-panel').hidden;
+    $('people-toggle').setAttribute('aria-expanded', String(!$('people-panel').hidden));
+    renderContacts();
+  });
+  $('people-panel').addEventListener('keydown', event => {
+    if (event.key === 'Escape') {
+      $('people-panel').hidden = true; $('people-toggle').setAttribute('aria-expanded', 'false'); $('people-toggle').focus();
+    }
+  });
 
   function updateProfile() {
     $('profile-name').textContent = name || 'Your name goes here';
     $('profile-avatar').textContent = name ? Array.from(name)[0].toUpperCase() : '?';
-    $('chatting-as').textContent = name ? 'Chatting as ' + name : 'Choose a name to join in';
+    updateConversationHeader();
   }
   function updateControls() {
     const remaining = Math.max(0, Math.ceil((until - Date.now()) / 1000));
-    message.disabled = !name || !connected || !overlay.hidden || remaining > 0;
+    const peerOffline = selected !== 'global' && !users.has(selected);
+    message.disabled = !name || !connected || !overlay.hidden || remaining > 0 || peerOffline;
     send.disabled = message.disabled || !message.value.trim();
     notice.classList.toggle('cooldown', remaining > 0);
     if (remaining) notice.textContent = 'A quick breather — you can chat again in ' + remaining + 's.';
     else if (!connected) notice.textContent = 'Connecting to the lounge… Your draft will stay here.';
     else if (!name) notice.textContent = 'Choose your chat name to get started.';
+    else if (peerOffline) notice.textContent = conversation(selected).user + ' is offline. Your draft will stay here until they return.';
     else notice.textContent = '';
     clearTimeout(timer);
     if (remaining) timer = setTimeout(updateControls, 200);
@@ -202,6 +355,7 @@ const clientScript = String.raw`(function startChat() {
     name = next;
     save(NAME_KEY, name);
     updateProfile();
+    sendProfile();
     closeName();
   });
   overlay.addEventListener('keydown', event => {
@@ -225,6 +379,7 @@ const clientScript = String.raw`(function startChat() {
     if (event.key === NAME_KEY && event.newValue?.trim()) {
       name = event.newValue.trim().slice(0, 20);
       updateProfile();
+      sendProfile();
       updateControls();
     }
   });
@@ -242,9 +397,14 @@ const clientScript = String.raw`(function startChat() {
     content.className = 'message-content';
     const meta = document.createElement('div');
     meta.className = 'message-meta';
-    const sender = document.createElement('span');
+    const sender = document.createElement(data.from && !data.own ? 'button' : 'span');
     sender.className = 'sender';
     sender.textContent = data.user + (data.own ? ' · you' : '');
+    if (data.from && !data.own) {
+      sender.type = 'button';
+      sender.title = 'Message ' + data.user;
+      sender.addEventListener('click', () => selectConversation(data.from, data.user));
+    }
     const time = document.createElement('time');
     const date = new Date(data.timestamp || Date.now());
     time.dateTime = date.toISOString();
@@ -273,40 +433,48 @@ const clientScript = String.raw`(function startChat() {
       connected = true;
       retries = 0;
       $('status').classList.remove('offline');
-      ws.send(JSON.stringify({ type: 'init' }));
+      ws.send(JSON.stringify({ type: 'init', ...(name ? { user: name } : {}) }));
       updateControls();
     };
     ws.onmessage = event => {
       let data;
       try { data = JSON.parse(event.data); } catch { return; }
-      if (data.type === 'presence') $('user-count').textContent = data.count + ' online';
-      if (data.type === 'chat' && typeof data.user === 'string' && typeof data.text === 'string') appendMessage(data);
+      if (data.type === 'session') { selfId = data.peerId; renderContacts(); }
+      if (data.type === 'presence') {
+        $('user-count').textContent = data.count + ' online';
+        users = new Map((data.users || []).map(user => [user.id, user]));
+        for (const [id, entry] of conversations) if (users.has(id)) entry.user = users.get(id).user;
+        updateConversationHeader(); renderContacts(); updateControls();
+      }
+      if ((data.type === 'chat' || data.type === 'dm') && typeof data.user === 'string' && typeof data.text === 'string') receiveMessage(data);
       if (data.type === 'timeout') {
         setCooldown(Math.min(5000, Math.max(0, Number(data.retryAfterMs) || 0)));
-        if (data.rejectedText) {
-          message.value = message.value ? data.rejectedText + ' ' + message.value : data.rejectedText;
-          message.value = message.value.slice(0, 2000);
-        }
+        restoreDraft(data);
       }
-      if (data.type === 'error') notice.textContent = data.text;
+      if (data.type === 'error') { restoreDraft(data); notice.textContent = data.text; }
     };
     ws.onclose = () => {
       connected = false;
       $('status').classList.add('offline');
       $('user-count').textContent = 'Reconnecting…';
+      users.clear(); updateConversationHeader(); renderContacts();
       updateControls();
       reconnectTimer = setTimeout(connect, Math.min(1000 * Math.pow(2, retries++), 15000));
     };
     ws.onerror = () => ws.close();
   }
-  message.addEventListener('input', () => { send.disabled = message.disabled || !message.value.trim(); });
+  message.addEventListener('input', () => {
+    conversation(selected).draft = message.value;
+    send.disabled = message.disabled || !message.value.trim();
+  });
   $('composer').addEventListener('submit', event => {
     event.preventDefault();
     const text = message.value.trim();
-    if (!name || !text || !overlay.hidden || Date.now() < until || !connected || ws.readyState !== WebSocket.OPEN) return;
-    try { ws.send(JSON.stringify({ type: 'chat', user: name, text })); }
+    if (!name || !text || !overlay.hidden || Date.now() < until || !connected || ws.readyState !== WebSocket.OPEN || (selected !== 'global' && !users.has(selected))) return;
+    try { ws.send(JSON.stringify({ type: selected === 'global' ? 'chat' : 'dm', user: name, text, ...(selected !== 'global' ? { to: selected } : {}) })); }
     catch { notice.textContent = 'Couldn’t send. Your message is still here — try again when connected.'; return; }
     message.value = '';
+    conversation(selected).draft = '';
     const now = Date.now();
     sentTimes = sentTimes.filter(time => now - time < 4000);
     sentTimes.push(now);

@@ -55,6 +55,27 @@ project for its SQLite variant. No migration change is required by this update.
   disk; refreshing clears them. DMs are not end-to-end encrypted and there is
   no offline delivery or authenticated account system.
 
+## DM notifications
+
+- New incoming DMs show a clickable message preview, an unread badge, and an
+  unread count in the tab title. An active conversation is marked read only
+  while the chat is visible and focused. Your own messages and public messages
+  do not produce DM alerts.
+- Choose **Enable notifications** for optional system notifications on supported
+  desktop browsers. Permission is requested only after that click. In-app
+  alerts continue working when permission is denied or the API is unavailable.
+- The Nova desktop embeds chat with `?novaEmbed=1` and attaches a private
+  `MessageChannel` directly to its iframe at the expected chat origin. DM previews
+  are never posted to a wildcard origin. The desktop displays its own alert and
+  unread badge, and opens the matching conversation when clicked.
+- Open Nova Chat once from the desktop and choose your name to connect. Closing
+  its window minimizes it so it can still receive DMs while you play. The desktop
+  owns system alerts for this embedded connection to avoid duplicate alerts.
+- These are live notifications while the page is connected, not offline Web
+  Push. Closing the browser or reloading clears the existing in-memory messages.
+  Browser permissions cannot be requested inside the cross-origin cloak; in-app
+  alerts work there. Use a direct HTTPS tab for system notifications.
+
 ## Performance and accessibility
 
 The liquid-glass appearance uses static gradients, translucent fills, bright

@@ -1,3 +1,5 @@
+import { notificationScript } from './notifications.js';
+
 export function getUI() {
   return `<!doctype html>
 <html lang="en">
@@ -117,6 +119,13 @@ export function getUI() {
   @media (max-width: 680px) { .channel-nav, #people-panel { padding: 10px 16px; } #people-list { grid-template-columns: 1fr; } #people-panel { max-height: 32vh; } }
   @media (prefers-reduced-transparency: reduce) { .app { background-color: #182b37; } .bubble, .composer, .room { background-color: #263c48; } }
   @media (forced-colors: active) { .glass, .bubble, .dialog, .primary, #name { border: 1px solid ButtonText; } }
+  #dm-toasts { position:fixed; right:18px; top:90px; width:min(360px,calc(100% - 36px)); display:grid; gap:10px; z-index:30; }
+  .dm-toast { display:flex; gap:8px; padding:12px; border:1px solid #a7f9df66; border-radius:15px; background:#203844; color:#edf7fa; box-shadow:0 10px 30px #0005; }
+  .dm-toast button { border:0; color:inherit; background:transparent; padding:5px; }
+  .dm-toast-open { flex:1; min-width:0; text-align:left; }
+  .dm-toast-open strong,.dm-toast-open span { display:block; font-size:12px; line-height:1.5; overflow-wrap:anywhere; }
+  .dm-toast-open span { margin-top:5px; color:#bcd5df; }
+  .channel-nav { flex-wrap:wrap; }
 </style>
 </head>
 <body>
@@ -129,7 +138,7 @@ export function getUI() {
   </aside>
   <main>
     <header><span class="hash" aria-hidden="true">#</span><div class="header-title"><h1 id="conversation-title">Global lounge</h1><p id="conversation-subtitle">Different people. One conversation.</p></div><div class="status glass offline" id="status"><span class="status-dot"></span><span id="user-count">Connecting…</span></div><button class="icon-btn glass" id="settings" aria-label="Settings" title="Settings · change your name"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 3-.6 2.2-2 .9-2-.6-2 3.5L4 10.5v3l-1.6 1.6 2 3.5 2-.6 2 .9L9 21h4l.6-2.1 2-.9 2 .6 2-3.5-1.6-1.6v-3L19.6 9l-2-3.5-2 .6-2-.9L13 3z"/><circle cx="11" cy="12" r="3"/></svg></button></header>
-    <nav class="channel-nav" aria-label="Conversations"><button id="lounge" class="channel-btn" aria-current="true"># Global lounge</button><button id="people-toggle" class="channel-btn" aria-expanded="false" aria-controls="people-panel">People &amp; messages <span id="total-unread" class="unread" hidden></span></button></nav>
+    <nav class="channel-nav" aria-label="Conversations"><button id="lounge" class="channel-btn" aria-current="true"># Global lounge</button><button id="people-toggle" class="channel-btn" aria-expanded="false" aria-controls="people-panel">People &amp; messages <span id="total-unread" class="unread" hidden></span></button><button id="notify-toggle" class="channel-btn" type="button" aria-pressed="false">Enable notifications</button></nav>
     <section id="people-panel" aria-label="People and direct messages" hidden><p>Choose someone to send a direct message. Messages stay in this tab until you refresh.</p><div id="people-list"></div></section><div id="dm-alert" role="status" aria-live="polite"></div>
     <section id="chat" role="log" aria-label="Chat messages" aria-live="polite" aria-relevant="additions" tabindex="0">
       <div class="welcome" id="welcome"><div class="logo">${novaIcon()}</div><div class="eyebrow">A little space to connect</div><h2>Good company. Great chats.</h2><p>Drop a thought, share a moment, or just say hey. The lounge is yours.</p><div class="welcome-tag glass"><span class="status-dot"></span>Live, in the moment</div></div>
@@ -139,6 +148,7 @@ export function getUI() {
   </main>
 </div>
 <div class="overlay" id="name-overlay" hidden><section class="dialog" role="dialog" aria-modal="true" aria-labelledby="name-title" aria-describedby="name-description"><div class="logo">${novaIcon()}</div><div class="eyebrow" id="dialog-eyebrow">Welcome to Nova Chat</div><h2 id="name-title">What do you want to be called in chat?</h2><p id="name-description">Pick a name that feels like you. You can change it anytime in settings.</p><form id="name-form"><label for="name">Your chat name</label><input id="name" placeholder="e.g. Moonwalker" maxlength="20" autocomplete="nickname" required aria-describedby="name-error"><div id="name-error" role="alert"></div><div class="dialog-actions"><button id="cancel" class="glass" type="button" hidden>Cancel</button><button class="primary" id="save-name" type="submit">Let’s chat <span aria-hidden="true">↗</span></button></div></form><p class="privacy">Your name is saved on this browser.</p></section></div>
+<div id="dm-toasts" aria-label="Direct message notifications"></div>
 <script>${clientScript}</script>
 </body></html>`;
 }
@@ -166,6 +176,8 @@ const clientScript = String.raw`(function startChat() {
   const history = [];
   const conversations = new Map([['global', { user: 'Global lounge', draft: '', unread: 0 }]]);
   const timeFormat = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' });
+
+  ${notificationScript}
 
   function conversation(id, user) {
     if (!conversations.has(id)) conversations.set(id, { user: user || 'Someone', draft: '', unread: 0 });
@@ -215,6 +227,7 @@ const clientScript = String.raw`(function startChat() {
     for (const [id, entry] of conversations) if (id !== 'global') unread += entry.unread;
     $('total-unread').hidden = unread === 0;
     $('total-unread').textContent = String(unread);
+    syncNotifications();
   }
   function updateConversationHeader() {
     const direct = selected !== 'global';
@@ -235,7 +248,8 @@ const clientScript = String.raw`(function startChat() {
     conversation(selected).draft = message.value;
     selected = id;
     const entry = conversation(id, user);
-    entry.unread = 0;
+    if (chatIsVisible()) entry.unread = 0;
+    clearDmAlert(id);
     message.value = entry.draft;
     messages.replaceChildren();
     $('welcome').classList.remove('started');
@@ -262,9 +276,9 @@ const clientScript = String.raw`(function startChat() {
       if (removed.conversation === selected && messages.firstElementChild) messages.firstElementChild.remove();
     }
     if (selected === id) appendMessage(data);
-    else if (!data.own) {
+    if (!data.own && (selected !== id || !chatIsVisible())) {
       entry.unread++;
-      if (data.type === 'dm') $('dm-alert').textContent = data.user + ' sent you a direct message.';
+      if (data.type === 'dm') notifyDm(data);
     }
     if (data.type === 'dm') renderContacts();
   }
@@ -334,6 +348,7 @@ const clientScript = String.raw`(function startChat() {
     app.inert = false;
     app.removeAttribute('aria-hidden');
     updateControls();
+    readActiveConversation();
     if (editing) $('settings').focus();
     else if (!message.disabled) message.focus();
   }
@@ -481,3 +496,4 @@ const clientScript = String.raw`(function startChat() {
   if (!name) openName(false);
   connect();
 })();`;
+

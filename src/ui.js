@@ -6,8 +6,8 @@ export function getUI() {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#101e29">
-<title>Nova Chat · Your little corner of the internet</title>
+<meta name="theme-color" content="#0b1320">
+<title>Nova Chat</title>
 <style>
   :root { color-scheme: dark; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #edf7fa; background: #0b1720; font-synthesis: none; }
   * { box-sizing: border-box; }
@@ -126,6 +126,84 @@ export function getUI() {
   .dm-toast-open strong,.dm-toast-open span { display:block; font-size:12px; line-height:1.5; overflow-wrap:anywhere; }
   .dm-toast-open span { margin-top:5px; color:#bcd5df; }
   .channel-nav { flex-wrap:wrap; }
+  /* Shared Nova product system: compact navy panels on a dotted canvas. */
+  :root { color: #eaf2ff; background: #101827; }
+  body {
+    background-color: #101827;
+    background-image: radial-gradient(circle, #253249 2.5px, transparent 2.5px);
+    background-size: 24px 24px;
+  }
+  .glass { background: #142136; border-color: #293b57; box-shadow: none; }
+  .app { background: transparent; grid-template-columns: 250px minmax(0,1fr); }
+  .sidebar {
+    padding: 25px 18px 20px;
+    gap: 28px;
+    background: #0c1523;
+    border-right-color: #1f2e45;
+  }
+  .brand { gap: 9px; }
+  .logo {
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+    color: #101827;
+    background: #eef5ff;
+    border: 0;
+    box-shadow: none;
+  }
+  .logo svg { width: 21px; height: 21px; stroke-width: 2; }
+  .brand-name { font-size: 20px; font-weight: 800; color: #eff5ff; }
+  .brand-name span { color: #91acd3; font-weight: 500; }
+  .eyebrow { color: #7188aa; font-size: 9px; letter-spacing: .16em; }
+  .room { margin-top: 10px; padding: 12px; border-radius: 10px; background: #18263c; border-color: #385071; }
+  .room strong { color: #d5e5fb; }
+  .room small, .dm-list:empty:after { color: #7e93b0; }
+  .hash { color: #8fb9f8; }
+  .room-dot, .status-dot { background: #71d0af; }
+  .contact { border-radius: 9px; color: #b8cce8; }
+  .contact:hover, .contact[aria-current="true"] { background: #18263c; border-color: #304665; }
+  .contact-label small, .profile small { color: #758ba9; }
+  .unread { background: #9fc4f8; color: #102039; }
+  .avatar { border-radius: 9px; background: #1b2a42; border-color: #304561; color: #bcd5f7; }
+  main { margin: 18px; margin-left: 0; border: 1px solid #243650; border-radius: 15px; overflow: hidden; background: rgba(15,25,41,.94); }
+  header { padding: 18px 24px; background: #101b2d; border-bottom-color: #243650; }
+  header h1 { color: #dce9fb; font-size: 15px; }
+  header p { color: #7d93b2; }
+  .status { color: #9fc8ba; border-radius: 9px; background: #142338; }
+  .icon-btn { width: 37px; height: 37px; border-radius: 9px; color: #a8bddb; }
+  .channel-nav { padding: 10px 24px; border-bottom-color: #1e2e45; background: #0e1929; }
+  .channel-btn { border-radius: 8px; color: #8fa4c2; background: transparent; border-color: transparent; }
+  .channel-btn:hover { background: #17253a; }
+  .channel-btn[aria-current="true"], .channel-btn[aria-expanded="true"] { background: #1b2b44; border-color: #345075; color: #c8ddfa; }
+  #people-panel { padding: 12px 24px; border-bottom-color: #263950; background: #121f32; }
+  #people-panel p { color: #8197b5; }
+  #chat { padding: 24px; scrollbar-color: #314662 transparent; }
+  .welcome { margin-top: clamp(22px,7vh,72px); }
+  .welcome .logo { width: 58px; height: 58px; border-radius: 17px; }
+  .welcome .eyebrow { color: #7f9bc3; }
+  .welcome h2 { color: #e8f1ff; font-size: clamp(24px,3vw,34px); font-weight: 750; }
+  .welcome p { color: #8399b7; }
+  .welcome-tag { color: #8fa7c7; background: #131f32; }
+  .day-label, time { color: #6f86a5; }
+  .day-label:before, .day-label:after { background: #24344c; }
+  .sender { color: #c5d8f3; }
+  .bubble { border-color: #2a3d58; background: #152338; color: #bed0e8; box-shadow: none; }
+  .own .bubble { background: #213655; border-color: #3d5d87; color: #e0ecfc; }
+  footer { padding: 0 24px 18px; background: #101b2d; }
+  #notice { color: #8095b2; }
+  .composer { border-radius: 11px; padding: 5px 6px 5px 14px; background: #111d2f; border-color: #2d4261; }
+  #message { color: #edf4ff; }
+  input::placeholder { color: #7086a5; }
+  .primary { border-color: #9cc3f6; background: #9fc4f8; color: #102039; border-radius: 8px; box-shadow: none; }
+  .primary:hover:not(:disabled) { background: #bad6fa; }
+  .composer-hint { color: #697f9d; }
+  .overlay { background: #09111dcc; backdrop-filter: blur(12px); }
+  .dialog { border-radius: 16px; background: #111d2f; border-color: #304665; box-shadow: 0 28px 90px #0008; }
+  .dialog p { color: #8ea3bf; }
+  #name { border-color: #344c6d; background: #0c1727; border-radius: 9px; }
+  .dm-toast { border-color: #42628c; border-radius: 10px; background: #172840; }
+  @media (max-width: 680px) { main { margin: 0; border: 0; border-radius: 0; } }
+  @media (prefers-reduced-motion: reduce) { *,*::before,*::after { animation: none!important; transition: none!important; } }
 </style>
 </head>
 <body>
@@ -141,7 +219,7 @@ export function getUI() {
     <nav class="channel-nav" aria-label="Conversations"><button id="lounge" class="channel-btn" aria-current="true"># Global lounge</button><button id="people-toggle" class="channel-btn" aria-expanded="false" aria-controls="people-panel">People &amp; messages <span id="total-unread" class="unread" hidden></span></button><button id="notify-toggle" class="channel-btn" type="button" aria-pressed="false">Enable notifications</button></nav>
     <section id="people-panel" aria-label="People and direct messages" hidden><p>Choose someone to send a direct message. Messages stay in this tab until you refresh.</p><div id="people-list"></div></section><div id="dm-alert" role="status" aria-live="polite"></div>
     <section id="chat" role="log" aria-label="Chat messages" aria-live="polite" aria-relevant="additions" tabindex="0">
-      <div class="welcome" id="welcome"><div class="logo">${novaIcon()}</div><div class="eyebrow">A little space to connect</div><h2>Good company. Great chats.</h2><p>Drop a thought, share a moment, or just say hey. The lounge is yours.</p><div class="welcome-tag glass"><span class="status-dot"></span>Live, in the moment</div></div>
+      <div class="welcome" id="welcome"><div class="logo">${novaIcon()}</div><div class="eyebrow">NOVA NETWORK</div><h2>Good company. Great chats.</h2><p>Join the global room or start a direct conversation with someone online.</p><div class="welcome-tag glass"><span class="status-dot"></span>Live now</div></div>
       <div class="day-label">This conversation starts here</div><div id="messages"></div>
     </section>
     <footer><p id="notice" role="status" aria-live="polite"></p><form class="composer glass" id="composer"><input id="message" aria-label="Message" placeholder="Say something nice…" maxlength="2000" autocomplete="off" disabled><button class="primary" id="send" aria-label="Send" type="submit" disabled><span>Send</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 14-7-4 14-3-6-7-1Z"/><path d="m12 13 7-8"/></svg></button></form><div class="composer-hint"><span id="chatting-as">Choose a name to join in</span><span>Enter to send · A little kindness goes a long way</span></div></footer>

@@ -12,7 +12,8 @@ function isTrustedNovaOrigin(origin, workerOrigin, env) {
   const hostname = parsed.hostname.toLowerCase();
   if (parsed.protocol !== 'https:' && hostname !== 'localhost' && hostname !== '127.0.0.1') return false;
   if (hostname === 'umarerth.pages.dev' || hostname === 'umarerth.github.io') return true;
-  if (hostname === 'static.app' || hostname.endsWith('.static.app')) return true;
+  const trustedMirrorSuffixes = ['.pages.dev', '.github.io', '.static.app', '.staticdomains.app', '.netlify.app', '.chatgpt.site'];
+  if (['static.app', 'staticdomains.app'].includes(hostname) || trustedMirrorSuffixes.some(suffix => hostname.endsWith(suffix))) return true;
   const configured = String(env.NOVA_CLIENT_ORIGINS || '').split(',').map(value => value.trim()).filter(Boolean);
   return configured.includes(origin);
 }

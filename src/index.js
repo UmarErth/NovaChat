@@ -4,6 +4,19 @@ const WINDOW_MS = 4000;
 const COOLDOWN_MS = 5000;
 const MESSAGE_LIMIT = 7;
 
+// The UI is bundled into Nova Gaming, while this worker remains the chat backend.
+function isTrustedNovaOrigin(origin, workerOrigin, env) {
+  if (!origin || origin === workerOrigin) return true;
+  let parsed;
+  try { parsed = new URL(origin); } catch { return false; }
+  const hostname = parsed.hostname.toLowerCase();
+  if (parsed.protocol !== 'https:' && hostname !== 'localhost' && hostname !== '127.0.0.1') return false;
+  if (hostname === 'umarerth.pages.dev' || hostname === 'umarerth.github.io') return true;
+  if (hostname === 'static.app' || hostname.endsWith('.static.app')) return true;
+  const configured = String(env.NOVA_CLIENT_ORIGINS || '').split(',').map(value => value.trim()).filter(Boolean);
+  return configured.includes(origin);
+}
+
 // Public routing IDs must never reveal the browser's identity cookie.
 export async function peerIdFor(clientId) {
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('nova-peer:' + clientId));
@@ -180,7 +193,7 @@ export default {
     const clientId = existing || crypto.randomUUID();
     if (url.pathname === '/ws') {
       const origin = request.headers.get('Origin');
-      if (origin && origin !== url.origin) return new Response('Forbidden', { status: 403 });
+      if (!isTrustedNovaOrigin(origin, url.origin, env)) return new Response('Forbidden', { status: 403 });
       const headers = new Headers(request.headers);
       headers.set('X-Nova-Client', clientId);
       const room = env.CHAT_ROOM.get(env.CHAT_ROOM.idFromName('global'));
